@@ -100,6 +100,26 @@ func StubExecError(q string, err error) {
 	StubQueryError(q, err)
 }
 
+// Set your own function to be executed when tx.Commit() is called. You can return an error or nil. This must be called prior to a call to db.Begin. A call to this function after a call to db.Begin() does not change the function set for the earlier transaction.
+func SetCommitFunc(f func() error) {
+	d.conn.commitFunc = f
+}
+
+// Set your own function to be executed when tx.Rollback() is called. Has the same behaviour as SetCommitFunc.
+func SetRollbackFunc(f func() error) {
+	d.conn.rollbackFunc = f
+}
+
+//Set your own function to be executed when sql.DB.Begin() is called to start a transaction.
+func SetBeginFunc(f func() (driver.Tx, error)) {
+	d.conn.beginFunc = f
+}
+
+// Set your own function to be executed when sql.DB.Close() is called to close a connection
+func SetCloseFunc(f func() error) {
+	d.conn.closeFunc = f
+}
+
 // Clears all stubbed queries, and replaced functions.
 func Reset() {
 	d.conn = newConn()

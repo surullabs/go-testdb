@@ -7,9 +7,13 @@ import (
 )
 
 type conn struct {
-	queries   map[string]query
-	queryFunc func(query string) (result driver.Rows, err error)
-	execFunc  func(query string, args ...interface{}) (sql.Result, error)
+	queries      map[string]query
+	queryFunc    func(query string) (result driver.Rows, err error)
+	execFunc     func(query string, args ...interface{}) (sql.Result, error)
+	commitFunc   func() (err error)
+	rollbackFunc func() (err error)
+	beginFunc    func() (driver.Tx, error)
+	closeFunc    func() error
 }
 
 func newConn() *conn {
@@ -39,17 +43,31 @@ func (c *conn) Prepare(query string) (driver.Stmt, error) {
 	return new(stmt), errors.New("Query not stubbed: " + query)
 }
 
-func (*conn) Close() error {
+func (c *conn) Close() error {
+	if c.closeFunc != nil {
+		return c.closeFunc()
+	}
 	return nil
 }
 
-func (*conn) Begin() (driver.Tx, error) {
-	return &tx{}, nil
+func (c *conn) Begin() (driver.Tx, error) {
+	if c.beginFunc != nil {
+		return c.beginFunc()
+	}
+	return &tx{commitFunc: c.commitFunc, rollbackFunc: c.rollbackFunc}, nil
+}
+
+func toInterface(args []driver.Value) []interface{} {
+	result := make([]interface{}, len(args))
+	for i, value := range args {
+		result[i] = value
+	}
+	return result
 }
 
 func (c *conn) Exec(query string, args []driver.Value) (driver.Result, error) {
 	if c.execFunc != nil {
-		return c.execFunc(query, args)
+		return c.execFunc(query, toInterface(args)...)
 	}
 
 	if q, ok := d.conn.queries[getQueryHash(query)]; ok {
